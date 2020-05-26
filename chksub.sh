@@ -37,7 +37,7 @@ valargs () {
     # $@
     # @out * config
     # @out lab_id
-    while [ "$#" -gt 1 ];
+    while [ "$#" -gt 0 ];
     do
         case "$1" in
             -h|--help)
@@ -46,6 +46,11 @@ valargs () {
                 ;;
             -c|--config)
                 config="${2}"
+                if [ -z "${config}" ]; then
+                    echo "error: valargs - expecting config value, \
+empty or none given" 1>&2
+                    return 1
+                fi
                 shift 2
                 ;;
             *)

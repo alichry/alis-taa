@@ -19,7 +19,7 @@ set -e
 
 usage="Lab grader usage:
     `basename "$0"` probgrades.in
-Note: probgrades.in should be sorted"
+Note: probgrades.in should be sorted (probgrd.sh sorts it)"
 
 printusage () {
     echo "${usage}"
@@ -33,7 +33,6 @@ valargs () {
         return 1
     fi
     if [ "$1" = "-h" -o "$1" = "--help" ]; then
-        printusage
         printusage
         exit 0
     fi

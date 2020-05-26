@@ -26,7 +26,7 @@ output_column_format="%D1 - %D2"
 separator=","
 transpose=0
 
-usage="Infer student's attendance from SSH logins
+usage="Infer student's attendance from logins
 Usage:
     `basename "$0"` [-l STUDENTS_LIST] [-u STUDENT] [-f F1 F2] [-c COLFORMAT]
                   [-s FROM_DATE] [-e TO_DATE] [-d DURING] [-w WEEKDAY]
@@ -46,7 +46,7 @@ Options:
                         %D2     to date, format specified in -f
                         Default is ${output_column_format}
     -s FROM_DATE -e TO_DATE
-                        Report SSH logins starting FROM_DATE until TO_DATE
+                        Report logins starting FROM_DATE until TO_DATE
                         Same format used by last, see man last
     -d DURING           Only use DURING as day time interval of the date for
                         the attendance time, e.g. -d 17:00-19:00

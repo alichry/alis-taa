@@ -48,14 +48,13 @@ Options:
                         of the current username in userslist, otherwise default
                         owner is the caller of ${script_name} (i.e. ${USER})
 Where:
-    userslist           list of usernames (seperated by new line). if userslist is -
-                        ${script_name} will read userslist from stdin
+    userslist           list of usernames (seperated by new line).
     src                 The file we want to bcast or gather. If more than one
                         source files are passed, dst is expected to be a
                         directory.
     dst                 The destination file or directory that will hold the
-                        copied file(s). Any occurrences of ${user_variable} in any src path
-                        will cause ${script_name} to evaluate it to the current
+                        copied file(s). Any occurrences of ${user_variable} will
+                        cause ${script_name} to evaluate it to the current
                         username in the userslist
 Note:
     Usually ran as root"
