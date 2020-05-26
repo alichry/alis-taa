@@ -1,0 +1,407 @@
+#!/bin/sh
+# Copyright 2020 Ali Cherry <cmcrc@alicherry.net>
+# This file is part of Ali's Teaching Assistant Assistant (ATTA).
+#
+# ATTA is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# any later version.
+#
+# ATTA is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with ATTA.  If not, see <https://www.gnu.org/licenses/>.
+
+set -ex
+
+script_name="$(basename "$0")"
+usage="Problem grader usage:
+    ${script_name} grades.out problem1.in [problem2.in [...]]"
+
+printusage () {
+    # @env usage
+    echo "${usage}"
+}
+
+bclt () {
+    # $1 > $2
+    local v1
+    local v2
+    v1="$1"
+    v2="$2"
+    if [ -z "${v1}" ]; then
+        echo "error: bclt - v1 is empty or not defined" 1>&2
+        return 2
+    fi
+    if [ -z "${v2}" ]; then
+        echo "error: bclt - v2 is empty or not defined" 1>&2
+        return 3
+    fi
+    ret=`echo "${v1}<${v2}" | bc -l`
+    if [ "${ret}" = "1" ]; then
+        return 0
+    elif [ "${ret}" = "0" ]; then
+        return 1
+    else
+        echo "error: bclt - unknown bc result '${ret}'"
+        return 4
+    fi
+}
+
+chk () {
+    # @out grades_out
+    if [ -z "${1}" ]; then
+        echo "error: missing grades output file" 1>&2
+        printusage
+        return 1
+    fi
+    if [ "${1}" = "-h" -o "${1}" = "--help" ]; then
+        printusage
+        exit 0
+    fi
+    if [ -f "${1}" ]; then
+        echo "error: passed grades outfile '${1}' already exists, \
+will not overwrite" 1>&2
+        return 1
+    fi
+    grades_out="$1"
+    shift 1
+    if [ "$#" -eq 0 ]; then
+        echo "error: need more arguments" 1>&2
+        printusage
+        return 1
+    fi
+    for f in "$@"
+    do
+        if [ -z "${f}" ]; then
+            echo "error: passed input file is empty or not defied" 1>&2
+            return 1
+        fi
+        if [ ! -f "${f}" ]; then
+            echo "error: passed input file '${f}' does not exists" 1>&2
+            return 1
+        fi
+        if [ ! -r "${f}" ]; then
+            echo "error: passed input file '${f}' is not readable" 1>&2
+            return 1
+        fi
+    done
+    return 0
+}
+
+merge () {
+    # $1 - gradesout
+    # $2 ... $# - 1 problemsin
+    local gradesout
+    local problemsin
+    local file
+    local header
+    local firstfile
+    local tmpfile
+    gradesout="$1"
+    firstfile="$2"
+    shift 1
+    if [ -z "${gradesout}" ]; then
+        echo "error: merge: grades outfile is empty or not defined" 1>&2
+        return 1
+    fi
+    if [ -f "${gradesout}" ]; then
+        echo "error: merge - passed grades outfile '${1}' already exists, \
+will not overwrite" 1>&2
+        return 1
+    fi
+    if [ -z "${firstfile}" ]; then
+        echo "error: merge - passed problem infile path is empty \
+or not defined" 1>&2
+        return 1
+    fi
+    tmpfile=`mktemp`
+    # columns
+    head -n 1 "${firstfile}" > "${tmpfile}"
+    for file in "$@"
+    do
+        echo "Processing infile ${file}"
+        if [ ! -f "${file}" ]; then
+            echo "Error: passed lab problem infile '${file}' does not exists" 1>&2
+            return 1
+        fi
+        if grep -q '' "${file}"; then
+            echo "error: merge - problem infile '${file}' contains carriage return" 1>&2
+            echo "please run dos2unix to get rid of it" 1>&2
+            return 1
+        fi
+        # add lab problem to grades out
+        tail -n +2 "${file}" >> "${tmpfile}"
+        # add new line (if the last line added doesnot have one)
+        echo >> "${tmpfile}"
+    done
+    # remove empty lines (GNU sed only!)
+    #sed -i "/^$/d" "${tmpfile}"
+    # sort
+    #sort -k 2,2 -k 1,1 -k 3,3 -t "," "${tmpfile}" >> "${grades_out}"
+    # POSIX/GNU sed
+    sed '/^$/d' "${tmpfile}" | sort -k 2,2 -k 1,1 -k 3,3 -t "," >> "${grades_out}"
+    rm "${tmpfile}"
+}
+
+vtf () {
+    # validate field/value and transform it
+    # ${1} field - compilable|relevant|correct|scalable
+    # ${2} value - the value
+    local field
+    local value
+    field="${1}"
+    value="${2}"
+    case "$(echo "${field}" | tr '[:upper:]' '[:lower:]')" in
+        '')
+            echo "error: vtf - field is empty" 1>&2
+            return 1
+            ;;
+        lab|username|problem|exists)
+            echo "${value}"
+            return 0
+            ;;
+        "compilable")
+            case "${value}" in
+                -1|0|1)
+                    echo "${value}"
+                    return 0
+                    ;;
+                *)
+                    return 1
+                    ;;
+            esac
+            ;;
+        "inspected")
+            case "${value}" in
+                Relevant|Irrelevant|Cheater|0|"Code from the web")
+                    echo "${value}"
+                    return 0
+                    ;;
+                *)
+                    echo "ERRORRRR" 1>&2
+                    return 1
+                    ;;
+            esac
+            ;;
+        "runnable")
+            case "${value}" in
+                -1|0|1)
+                    echo "${value}"
+                    return 0
+                    ;;
+                *)
+                    return 1
+                    ;;
+            esac
+            ;;
+        "np ")
+            echo "error: vtf - invalid field '${1}'" 1>&2
+            return 1
+            ;;
+        "np "*[!0-9]*)
+            echo "error: vtf - invalid field '${1}'" 1>&2
+            return 1
+            ;;
+        "np "*)
+            if [ "${value}" = "0" -o "${value}" = "-1" ]; then
+                echo "${value}"
+                return 0
+            fi
+            # here, np has to be followed by a sequence of digits
+            # due to the above 2 halting babies
+            # np [0-9]+ is expected to have time command format: 0m0.0s
+            if ! echo "${value}" | grep -Eq '^[0-9]+m[0-9]+(\.[0-9]+)?s$'; then
+                echo "error: vtf - invalid value '${value}' \
+for field '${field}'" 1>&2
+                return 1
+            fi
+            echo "${value}"  | sed 's/s//' \
+                | awk -F "m" '{print $1 * 60 + $2};'
+            return 0
+            ;;
+        "scalable")
+            case "${value}" in
+                -1|0|1)
+                    echo "${value}"
+                    return 0
+                    ;;
+                *)
+                    return 1
+                    ;;
+            esac
+            ;;
+        *)
+            echo "error: vtf - unknown field '${field}'" 1>&2
+            return 1
+            ;;
+    esac
+    echo "error: vtf - unexpected branch" 1>&2
+    return 2
+}
+
+partgrade () {
+    # $1 columns
+    # $2 row
+    local columns
+    local row
+    local field
+    local value
+    local fcount
+    local vcount
+    local index
+    local grade
+    local irrelevant
+    local cheater
+    local correct
+    local scalable
+    local minnp
+    local anyspeedup
+    columns="$1"
+    row="$2"
+    grade=0
+    irrelevant=0
+    cheater=0
+    scalable=0
+    anyspeedup=0
+    if [ -z "${columns}" ]; then
+        echo "error: partgrade - columns is empty or not defined" 1>&2
+        return 1
+    fi
+    if [ -z "${row}" ]; then
+        echo "error: partgrade - row is empty or not definend" 1>&2
+        return 1
+    fi
+    fcount=`echo "${columns}" | awk -F , '{print NF}'`
+    if [ "${fcount}" -eq 0 ]; then
+        echo "error: partgrade - field count is zero!" 1>&2
+        return 1
+    fi
+    vcount=`echo "${row}" | awk -F , '{print NF}'`
+    if [ "${fcount}" -ne "${vcount}" ]; then
+        echo "error: partgrade - field count mismatch \
+(${fcount} != ${vcount})" 1>&2
+        return 1
+    fi
+    for index in $(seq -s " " 1 ${fcount})
+    do
+        field=`echo "${columns}" | awk -F , -v index=${index} '{print $index}'`
+        value=`echo "${row}" | awk -F , -v index=${index} '{print $index}'`
+        value=`vtf "${field}" "${value}"`
+        case "$(echo "${field}" | tr '[:upper:]' '[:lower:]')" in
+            "inspected")
+                case "${value}" in
+                    Cheater|"Code from the web")
+                        # breaking from this loop should be enough
+                        # to return a 0 grade if the releveant field
+                        # is before any other graded field
+                        # otherwise, we set cheater=1
+                        # and we check it after this loop
+                        cheater=1
+                        break
+                        ;;
+                    Irrelevant|0)
+                        irrelevant=1
+                        break
+                        ;;
+                esac
+                ;;
+            "compilable")
+                case "${value}" in
+                    1)
+                        #grade=$((grade + ??))
+                        ;;
+                esac
+                ;;
+            "runnable")
+                case "${value}" in
+                    1)
+                        correct=1
+                        #grade=$((grade + ??))
+                        ;;
+                esac
+                ;;
+            "np "*)
+                if [ -z "${minnp}" ]; then
+                    minnp="${value}"
+                elif bclt "${value}" "${minnp}"; then
+                    minnp="${value}"
+                    anyspeedup=1
+                fi
+                ;;
+            "scalable")
+                case "${value}" in
+                    1)
+                        # scalable is a manual grade
+                        scalable=1
+                        #grade=$((grade + ??))
+                        ;;
+                esac
+                ;;
+            *)
+                ;;
+        esac
+    done
+    # do something if scalable and correct
+    # useful to modify grade using more than 1 field value
+    #if [ "${scalable}" -eq 1 -a "${correct}" -eq 1 ]; then
+        # do something..
+    #fi
+    #if [ "${scalable}" -eq 0 -a "${anyspeedup}" -eq 1 ]; then
+        #grade=$((grade + ??))
+    #fi
+    if [ "${cheater}" -eq 1 ]; then
+        grade=0
+    fi
+    printf "%s" "${grade}"
+    return 0
+}
+
+grade () {
+    # $1 gradesout - prepared gradesout file from merge
+    # parse each row in lab problem
+    # and save the grade
+    local gradesout
+    local grade
+    local columns
+    local tmpfile1
+    local tmpfile2
+    gradesout="$1"
+    if [ -z "${gradesout}" ]; then
+        echo "error: grade - grades outfile is empty or not defined" 1>&2
+        return 1
+    fi
+    if [ ! -f "${gradesout}" ]; then
+        echo "error: grade - grades outfile '${gradesout}' does not exists" 1>&2
+        return 1
+    fi
+    # get columns
+    columns=`head -n 1 "${gradesout}"`
+    tmpfile1=`mktemp`
+    tmpfile2=`mktemp`
+    cp "${gradesout}" "${tmpfile1}"
+    echo "Grade" > "${tmpfile2}"
+
+    sed 1d "${gradesout}" | while IFS= read -r line
+    do
+        grade=`partgrade "${columns}" "${line}"`
+        echo "${grade}" >> "${tmpfile2}"
+    done
+    paste -d "," "${tmpfile1}" "${tmpfile2}" > "${gradesout}"
+    rm "${tmpfile1}"
+    rm "${tmpfile2}"
+    return 0
+}
+
+run () {
+    # $@ of cl
+    chk "$@"
+    shift 1
+    merge "${grades_out}" "$@"
+    grade "${grades_out}"
+}
+
+run "$@"
