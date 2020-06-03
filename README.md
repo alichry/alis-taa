@@ -49,7 +49,7 @@ Options:
                         F1 specifies format for from date, and
                         F2 specifies format for to date. Both formats follows
                         format used by date. See man date
-                        Default is +%d/%m/%Y %H:%M:%S +%d/%m/%Y %H:%M:%S
+                        Default is Default is -f "+%d/%m/%Y %H:%M:%S" "+%d/%m/%Y %H:%M:%S"
     -c COLFORMAT        Use COLFORMAT as column display format.
                         Interpretted tokens:
                         %D1     from date, format specified in -f

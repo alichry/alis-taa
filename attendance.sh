@@ -39,7 +39,8 @@ Options:
                         F1 specifies format for from date, and
                         F2 specifies format for to date. Both formats follows
                         format used by date. See man date
-                        Default is ${output_from_format} ${output_to_format}
+                        Default is -f \"${output_from_format}\" \
+\"${output_to_format}\"
     -c COLFORMAT        Use COLFORMAT as column display format.
                         Interpretted tokens:
                         %D1     from date, format specified in -f
